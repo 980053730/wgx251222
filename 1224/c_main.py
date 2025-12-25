@@ -1,7 +1,7 @@
 import torch
 import os
-from trainer import VAEGANTrainer
-from utils import load_cwru_data
+from c_trainer import VAEGANTrainer
+from c_utils import load_cwru_data
 
 # --- 配置 ---
 # 请将此路径改为你 ST.py 生成图像的根目录

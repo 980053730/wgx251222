@@ -118,7 +118,9 @@ class Encoder(nn.Module):
         z = self.reparametrize(mu, logvar)
 
         # KL散度
+        batch_size = x.size(0)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        KLD = KLD / batch_size
 
         ssl_output = {}
 

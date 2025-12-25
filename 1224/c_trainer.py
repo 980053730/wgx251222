@@ -3,8 +3,9 @@ import torch.optim as optim
 from torch import nn
 import time
 import os
-from model import Encoder, Decoder, Discriminator
-from utils import (self_supervised_augmentation, SelfSupervisedLoss,
+import csv
+from c_model import Encoder, Decoder, Discriminator
+from c_utils import (self_supervised_augmentation, SelfSupervisedLoss,
                    evaluate_classification, show_images, plot_losses,
                    plot_accuracy, visualize_latent_space, get_all_predictions,
                    plot_confusion_matrix)
@@ -58,6 +59,38 @@ class VAEGANTrainer:
 
         # 固定噪声 (用于生成可视化)
         self.fixed_noise = torch.randn(64, latent_dim).to(self.device)
+
+        def log_to_csv(self, epoch_losses, train_acc, test_acc):
+            """
+            将当前 Epoch 的数据追加写入 CSV 文件
+            """
+            csv_path = os.path.join(self.save_dir, 'training_log.csv')
+
+            # 定义表头
+            headers = ['Epoch', 'D_loss', 'G_loss', 'KLD', 'SSL_loss', 'Recon_loss', 'Cls_loss', 'Train_Acc','Test_Acc']
+            # 准备数据行
+            row = [
+                self.current_epoch,
+                f"{epoch_losses['D_loss']:.4f}",
+                f"{epoch_losses['G_loss']:.4f}",
+                f"{epoch_losses['KLD']:.4f}",
+                f"{epoch_losses['SSL_loss']:.4f}",
+                f"{epoch_losses['Recon_loss']:.4f}",
+                f"{epoch_losses['Cls_loss']:.4f}",
+                f"{train_acc:.2f}",
+                f"{test_acc:.2f}"
+            ]
+
+            # 写入文件
+            file_exists = os.path.isfile(csv_path)
+            try:
+                with open(csv_path, mode='a', newline='') as f:
+                    writer = csv.writer(f)
+                    if not file_exists:
+                        writer.writerow(headers)  # 如果文件不存在，先写表头
+                    writer.writerow(row)
+            except Exception as e:
+                print(f"写入 CSV 失败: {e}")
 
     def train_step(self, x_real, labels):
         batch_size = x_real.size(0)
@@ -171,6 +204,7 @@ class VAEGANTrainer:
               f"Recon: {epoch_losses['Recon_loss']:.4f} | SSL: {epoch_losses['SSL_loss']:.4f} | "
               f"Acc: {train_acc:.2f}% / {test_acc:.2f}%")
 
+        self.log_to_csv(epoch_losses, train_acc, test_acc)
         self.current_epoch += 1
         return epoch_losses
 
@@ -202,3 +236,11 @@ class VAEGANTrainer:
             # 假设类别名就是数字，如果是 ImageFolder 后面可以优化
             names = [str(i) for i in range(10)]
             plot_confusion_matrix(y_true, y_pred, os.path.join(self.save_dir, 'cm.png'), names)
+            #t - SNE可视化(Encoder) - --
+            print("正在生成 t-SNE 可视化 (这可能需要一点时间)...")
+            tsne_path = os.path.join(self.save_dir, f'tsne_epoch_{self.current_epoch}.png')
+            try:
+                visualize_latent_space(self.encoder, test_loader, self.device, tsne_path)
+                print(f"t-SNE 已保存到: {tsne_path}")
+            except Exception as e:
+                print(f"t-SNE 生成失败 (可能是数据量不足或缺少 sklearn): {e}")
